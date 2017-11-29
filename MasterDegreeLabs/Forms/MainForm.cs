@@ -11,6 +11,7 @@ namespace MasterDegreeLabs.Forms
 {
     public partial class MainForm : Form
     {
+        private const string StopWords = "StopWords.txt";
         private static readonly Regex WordRegex = new Regex("\\W+");
         private static readonly Dictionary<string, int> KeyWords = new Dictionary<string, int>();
 
@@ -30,14 +31,23 @@ namespace MasterDegreeLabs.Forms
                 return;
             }
 
+            var stopWords = GetStopWords();
             var text = ucText.Text;
             var split = WordRegex.Split(text);
+            var stopWordsExist = stopWords.Count != 0;
 
             foreach (var word in split)
             {
                 var lowerWord = word.ToLower();
 
-                if (lowerWord.Length <= ucPrepositionLength.Value)
+                if (stopWordsExist)
+                {
+                    if (stopWords.Contains(lowerWord))
+                    {
+                        continue;
+                    }
+                }
+                else if (lowerWord.Length <= ucPrepositionLength.Value)
                 {
                     continue;
                 }
@@ -51,6 +61,11 @@ namespace MasterDegreeLabs.Forms
                 KeyWords.Add(lowerWord, 1);
             }
 
+            foreach (var ucChartSeries in ucChart.Series)
+            {
+                ucChartSeries.Points.Clear();
+            }
+
             ucChart.Series.Clear();
 
             var series = new Series();
@@ -58,12 +73,21 @@ namespace MasterDegreeLabs.Forms
             var index = 1;
             foreach (var kvp in OrderedKeyWords)
             {
-                var dataPoint = new DataPoint(index, kvp.Value) {Label = kvp.Key};
+                var dataPoint = new DataPoint(index, kvp.Value)
+                {
+                    Label = $"{kvp.Key} - {Convert.ToDecimal(kvp.Value) / split.Length:F4}"
+                };
                 series.Points.Add(dataPoint);
                 index++;
             }
 
             ucChart.Series.Add(series);
+        }
+
+        private IList<string> GetStopWords()
+        {
+            var path = $"{Environment.CurrentDirectory}\\{StopWords}";
+            return !File.Exists(path) ? new List<string>() : File.ReadAllLines(path).ToList();
         }
 
         private async void ucEssey_Click(object sender, EventArgs e)
@@ -89,7 +113,7 @@ namespace MasterDegreeLabs.Forms
             {
                 foreach (var sentence in sentences)
                 {
-                    await fileStream.WriteLineAsync(sentence);
+                    await fileStream.WriteLineAsync($"{sentence.TrimEnd()}.");
                 }
 
                 fileStream.Close();
